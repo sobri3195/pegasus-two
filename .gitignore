@@ -1,0 +1,32 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Temporary files
+*.log
+*.tmp
+*.bak
+
+# Compiled files
+*.o
+*.pyc
+*.class
+
+# Package manager directories
+node_modules/
+vendor/
