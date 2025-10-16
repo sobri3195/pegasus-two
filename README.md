@@ -42,10 +42,16 @@ Options :
 - `pegasus-two -i [tool_name]` install any tool.
 - `pegasus-two search [tool_name]` search any tool.
 - `pegasus-two -s [tool_name]` search any tool.
+- `pegasus-two remove [tool_name]` remove any tool.
+- `pegasus-two -r [tool_name]` remove any tool.
 - `pegasus-two list` list all tools.
 - `pegasus-two list -a` list all tools.
 - `pegasus-two -l` list all tools.
 - `pegasus-two -l -a` list all tools.
+- `pegasus-two category` list all categories.
+- `pegasus-two -c` list all categories.
+- `pegasus-two update` update pegasus-two.
+- `pegasus-two -u` update pegasus-two.
 - `pegasus-two help` get help.
 - `pegasus-two -h` get help.
 
@@ -56,9 +62,10 @@ Options :
 Enter a Number for a specific output:
 - (1) : To show all available tools and type the number of a tool which you want to install.
 - (2) : To show tools category.
-- (3) : If you want to update pegasus-two.
-- (4) : If you want to know About Us.
-- (5) : To exit the tool.
+- (3) : To remove a tool.
+- (4) : If you want to update pegasus-two.
+- (5) : If you want to know About Us.
+- (6) : To exit the tool.
 
 ------------------------------------------------------------------------
 
