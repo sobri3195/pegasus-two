@@ -346,7 +346,7 @@ install() {
             fi
             # installing tools
             if [ $tool_url != "" -a $tool_url != "null" ]; then
-              $sudo wget $tool_url -o ~/$tool_pac
+              $sudo wget $tool_url -O ~/$tool_pac
             fi
           else
             echo "\033[01;31mSorry you are offline !!\033[00m"
@@ -368,7 +368,7 @@ install() {
             fi
             # installing tools
             if [ $tool_url != "" -a $tool_url != "null" ]; then
-              wget $tool_url -o ~/$tool_pac
+              wget $tool_url -O ~/$tool_pac
             fi
           else
             echo "\033[01;31mSorry \033[00m: you are \033[01;31moffline \033[00m!!\033[00m"
@@ -671,7 +671,7 @@ install_category_tool() {
             fi
             # installing tools
             if [ $tool_url != "" -a $tool_url != "null" ]; then
-              $sudo wget $tool_url -o ~/$tool_pac
+              $sudo wget $tool_url -O ~/$tool_pac
             fi
           else
             echo "\033[01;31mSorry you are offline !!\033[00m"
@@ -693,7 +693,7 @@ install_category_tool() {
             fi
             # installing tools
             if [ $tool_url != "" -a $tool_url != "null" ]; then
-              wget $tool_url -o ~/$tool_pac
+              wget $tool_url -O ~/$tool_pac
             fi
           else
             echo "\033[01;31mSorry \033[00m: you are \033[01;31moffline \033[00m!!\033[00m"
@@ -781,7 +781,7 @@ category() {
     case $cmd in
       [1-9]|[1-9][0-9])
         if [ $cmd -le $list ]; then
-          while [ true ]; do
+          while true; do
             clear
             # display all tools of selected category
             category=`grep '.' $category_data | sed -n "$cmd p" | cut -d"|" -f2`
@@ -894,13 +894,380 @@ update() {
   done
 }
 
+# log file path
+log_file="$conf_dir/pegasus-two/pegasus.log"
+history_file="$conf_dir/pegasus-two/history.log"
+favorites_file="$conf_dir/pegasus-two/favorites.dat"
+config_file="$conf_dir/pegasus-two/config.conf"
+backup_dir="$conf_dir/pegasus-two/backups"
+
+# create log directory if not exists
+if [ ! -d $conf_dir/pegasus-two ]; then
+  if [ $sudo ]; then
+    $sudo mkdir -p $conf_dir/pegasus-two
+  else
+    mkdir -p $conf_dir/pegasus-two
+  fi
+fi
+
+# Feature 1: Logging system
+log_action() {
+  timestamp=`date '+%Y-%m-%d %H:%M:%S'`
+  echo "[$timestamp] $1" >> $log_file 2>/dev/null
+  echo "[$timestamp] $1" >> $history_file 2>/dev/null
+}
+
+# Feature 2: Backup tools before removal
+backup_tool() {
+  tool_name=$1
+  tool_pac=$2
+  timestamp=`date '+%Y%m%d_%H%M%S'`
+  
+  if [ ! -d $backup_dir ]; then
+    if [ $sudo ]; then
+      $sudo mkdir -p $backup_dir
+    else
+      mkdir -p $backup_dir
+    fi
+  fi
+  
+  if [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
+    backup_path="$backup_dir/${tool_name}_${timestamp}.tar.gz"
+    echo "\033[01;33mCreating backup...\033[00m"
+    if [ $sudo ]; then
+      $sudo tar -czf $backup_path -C ~ $tool_pac 2>/dev/null
+    else
+      tar -czf $backup_path -C ~ $tool_pac 2>/dev/null
+    fi
+    if [ $? -eq 0 ]; then
+      echo "\033[01;32mBackup created: $backup_path\033[00m"
+      log_action "BACKUP: $tool_name backed up to $backup_path"
+    fi
+  fi
+}
+
+# Feature 3: Tool information display
+cli_info() {
+  for data in `grep -i "^$1" $tools_data`; do
+    for tool in $data; do
+      if [ `echo $tool | cut -d"|" -f1 | tr 'A-Z' 'a-z'` = `echo $1 | tr 'A-Z' 'a-z'` ]; then
+        get_tool_data=$tool
+      fi
+    done
+  done
+  
+  if [ "$get_tool_data" ]; then
+    tool_name=`echo $get_tool_data | cut -d"|" -f1`
+    tool_pac=`echo $get_tool_data | cut -d"|" -f2`
+    tool_desc=`echo $get_tool_data | cut -d"|" -f3`
+    tool_url=`echo $get_tool_data | cut -d"|" -f4`
+    tool_installer=`echo $get_tool_data | cut -d"|" -f5`
+    tool_dependency=`echo $get_tool_data | cut -d"|" -f6`
+    
+    echo "\033[01;33m=== Tool Information ===\033[00m"
+    echo "\033[01;32mName:\033[00m $tool_name"
+    echo "\033[01;32mPackage:\033[00m $tool_pac"
+    echo "\033[01;32mDescription:\033[00m $tool_desc"
+    echo "\033[01;32mURL:\033[00m $tool_url"
+    echo "\033[01;32mInstaller:\033[00m $tool_installer"
+    echo "\033[01;32mDependencies:\033[00m $tool_dependency"
+    
+    if [ -e $bin/$tool_pac ] || [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
+      echo "\033[01;32mStatus:\033[00m Installed"
+    else
+      echo "\033[01;32mStatus:\033[00m Not Installed"
+    fi
+  else
+    echo "\033[01;31mTool not found!\033[00m"
+  fi
+}
+
+# Feature 4: Export installed tools
+cli_export() {
+  export_file="${1:-$home/pegasus_installed_tools.txt}"
+  echo "\033[01;32mExporting installed tools to $export_file...\033[00m"
+  echo "# Pegasus-Two Installed Tools - $(date)" > $export_file
+  
+  for data in `grep "." $tools_data | sort -f`; do
+    tool_name=`echo $data | cut -d"|" -f1`
+    tool_pac=`echo $data | cut -d"|" -f2`
+    
+    if [ -e $bin/$tool_pac ] || [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
+      echo "$tool_name" >> $export_file
+    fi
+  done
+  
+  echo "\033[01;32mExport completed!\033[00m"
+  log_action "EXPORT: Installed tools exported to $export_file"
+}
+
+# Feature 5: Import and install tools from file
+cli_import() {
+  import_file=$1
+  if [ ! -e "$import_file" ]; then
+    echo "\033[01;31mFile not found: $import_file\033[00m"
+    return
+  fi
+  
+  echo "\033[01;32mImporting tools from $import_file...\033[00m"
+  while IFS= read -r tool_name; do
+    if [ ! -z "$tool_name" ] && [ "${tool_name:0:1}" != "#" ]; then
+      echo "\033[01;33mInstalling $tool_name...\033[00m"
+      cli_install "$tool_name"
+    fi
+  done < "$import_file"
+  
+  echo "\033[01;32mImport completed!\033[00m"
+  log_action "IMPORT: Tools imported from $import_file"
+}
+
+# Feature 6: Favorites system
+cli_favorite_add() {
+  tool_name=$1
+  if grep -q "^$tool_name$" $favorites_file 2>/dev/null; then
+    echo "\033[01;33m'$tool_name' is already in favorites!\033[00m"
+  else
+    echo "$tool_name" >> $favorites_file
+    echo "\033[01;32m'$tool_name' added to favorites!\033[00m"
+    log_action "FAVORITE_ADD: $tool_name"
+  fi
+}
+
+cli_favorite_remove() {
+  tool_name=$1
+  if [ -e $favorites_file ]; then
+    grep -v "^$tool_name$" $favorites_file > ${favorites_file}.tmp
+    mv ${favorites_file}.tmp $favorites_file
+    echo "\033[01;32m'$tool_name' removed from favorites!\033[00m"
+    log_action "FAVORITE_REMOVE: $tool_name"
+  fi
+}
+
+cli_favorite_list() {
+  if [ -e $favorites_file ]; then
+    echo "\033[01;33m=== Favorite Tools ===\033[00m"
+    echo -n "\033[01;32m"
+    cat $favorites_file
+    echo -n "\033[00m"
+  else
+    echo "\033[01;31mNo favorite tools yet!\033[00m"
+  fi
+}
+
+# Feature 7: Batch install
+cli_batch_install() {
+  shift
+  for tool in "$@"; do
+    echo "\033[01;33mInstalling $tool...\033[00m"
+    cli_install "$tool"
+  done
+  log_action "BATCH_INSTALL: $@"
+}
+
+# Feature 8: Statistics
+cli_stats() {
+  total_tools=`grep -n "." $tools_data | wc -l`
+  installed_count=0
+  
+  for data in `grep "." $tools_data | sort -f`; do
+    tool_pac=`echo $data | cut -d"|" -f2`
+    if [ -e $bin/$tool_pac ] || [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
+      installed_count=$((installed_count + 1))
+    fi
+  done
+  
+  echo "\033[01;33m=== Pegasus-Two Statistics ===\033[00m"
+  echo "\033[01;32mTotal Tools Available:\033[00m $total_tools"
+  echo "\033[01;32mInstalled Tools:\033[00m $installed_count"
+  echo "\033[01;32mNot Installed:\033[00m $((total_tools - installed_count))"
+  
+  if [ -e $history_file ]; then
+    install_actions=`grep -c "INSTALL:" $history_file 2>/dev/null || echo 0`
+    remove_actions=`grep -c "REMOVE:" $history_file 2>/dev/null || echo 0`
+    echo "\033[01;32mTotal Installations:\033[00m $install_actions"
+    echo "\033[01;32mTotal Removals:\033[00m $remove_actions"
+  fi
+}
+
+# Feature 9: View history
+cli_history() {
+  if [ -e $history_file ]; then
+    lines=${1:-20}
+    echo "\033[01;33m=== Recent History (last $lines entries) ===\033[00m"
+    tail -n $lines $history_file
+  else
+    echo "\033[01;31mNo history available!\033[00m"
+  fi
+}
+
+# Feature 10: Dry-run mode
+cli_dry_run() {
+  echo "\033[01;33m=== DRY RUN MODE ===\033[00m"
+  echo "\033[01;32mThis would install: $1\033[00m"
+  
+  for data in `grep -i "^$1" $tools_data`; do
+    for tool in $data; do
+      if [ `echo $tool | cut -d"|" -f1 | tr 'A-Z' 'a-z'` = `echo $1 | tr 'A-Z' 'a-z'` ]; then
+        tool_name=`echo $tool | cut -d"|" -f1`
+        tool_dependency=`echo $tool | cut -d"|" -f6`
+        tool_installer=`echo $tool | cut -d"|" -f5`
+        
+        echo "\033[01;32mTool:\033[00m $tool_name"
+        echo "\033[01;32mInstaller:\033[00m $tool_installer"
+        
+        if [ "$tool_dependency" != "null" ]; then
+          echo "\033[01;32mDependencies to install:\033[00m $tool_dependency"
+        else
+          echo "\033[01;32mNo dependencies\033[00m"
+        fi
+      fi
+    done
+  done
+}
+
+# Feature 11: List installed tools only
+cli_list_installed() {
+  echo "\033[01;33m=== Installed Tools ===\033[00m"
+  for data in `grep "." $tools_data | sort -f`; do
+    tool_name=`echo $data | cut -d"|" -f1`
+    tool_pac=`echo $data | cut -d"|" -f2`
+    
+    if [ -e $bin/$tool_pac ] || [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
+      echo "\033[01;32m$tool_name\033[00m"
+    fi
+  done
+}
+
+# Feature 12: List by category in CLI
+cli_list_category() {
+  category_num=$1
+  if [ -z "$category_num" ]; then
+    cli_category
+    return
+  fi
+  
+  category=`grep '.' $category_data | sed -n "${category_num}p" | cut -d"|" -f2`
+  category_alias=`grep '.' $category_data | sed -n "${category_num}p" | cut -d"|" -f1`
+  
+  if [ "$category" ]; then
+    echo "\033[01;33m=== Tools in $category_alias ===\033[00m"
+    grep "." $tools_data | sort -f | sed -n "/$category/p" | cut -d"|" -f1 | while read tool; do
+      echo "\033[01;32m$tool\033[00m"
+    done
+  else
+    echo "\033[01;31mCategory not found!\033[00m"
+  fi
+}
+
+# Feature 13: Verify tool installation
+cli_verify() {
+  tool_name=$1
+  for data in `grep -i "^$tool_name" $tools_data`; do
+    for tool in $data; do
+      if [ `echo $tool | cut -d"|" -f1 | tr 'A-Z' 'a-z'` = `echo $tool_name | tr 'A-Z' 'a-z'` ]; then
+        tool_pac=`echo $tool | cut -d"|" -f2`
+        tool_installer=`echo $tool | cut -d"|" -f5`
+        
+        echo "\033[01;33mVerifying $tool_name...\033[00m"
+        
+        if [ $tool_installer = "package_manager" ]; then
+          if [ -e $bin/$tool_pac ]; then
+            echo "\033[01;32m✓ $tool_name is installed and found at $bin/$tool_pac\033[00m"
+            if [ -x $bin/$tool_pac ]; then
+              echo "\033[01;32m✓ Executable permissions OK\033[00m"
+            else
+              echo "\033[01;31m✗ Not executable\033[00m"
+            fi
+          else
+            echo "\033[01;31m✗ $tool_name is not installed\033[00m"
+          fi
+        else
+          if [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
+            echo "\033[01;32m✓ $tool_name is installed at ~/$tool_pac\033[00m"
+          else
+            echo "\033[01;31m✗ $tool_name is not installed\033[00m"
+          fi
+        fi
+      fi
+    done
+  done
+}
+
+# Feature 14: Clean backups
+cli_clean_backups() {
+  if [ -d $backup_dir ]; then
+    backup_count=`ls -1 $backup_dir | wc -l`
+    echo "\033[01;33mFound $backup_count backup(s)\033[00m"
+    echo "\033[01;31mDelete all backups? (y/n)\033[00m"
+    read confirm
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+      if [ $sudo ]; then
+        $sudo rm -rf $backup_dir/*
+      else
+        rm -rf $backup_dir/*
+      fi
+      echo "\033[01;32mBackups cleaned!\033[00m"
+      log_action "CLEAN: All backups deleted"
+    fi
+  else
+    echo "\033[01;31mNo backups found!\033[00m"
+  fi
+}
+
+# Feature 15: Configuration management
+cli_config_set() {
+  key=$1
+  value=$2
+  if [ -z "$key" ] || [ -z "$value" ]; then
+    echo "\033[01;31mUsage: pegasus-two config set <key> <value>\033[00m"
+    return
+  fi
+  
+  if [ -e $config_file ]; then
+    grep -v "^$key=" $config_file > ${config_file}.tmp 2>/dev/null
+    mv ${config_file}.tmp $config_file 2>/dev/null
+  fi
+  
+  ( echo "$key=$value" >> $config_file ) 2>/dev/null
+  if [ $? -eq 0 ]; then
+    echo "\033[01;32mConfiguration saved: $key=$value\033[00m"
+    log_action "CONFIG_SET: $key=$value"
+  else
+    echo "\033[01;31mFailed to save configuration (permission denied)\033[00m"
+  fi
+}
+
+cli_config_get() {
+  key=$1
+  if [ -z "$key" ]; then
+    if [ -e $config_file ]; then
+      echo "\033[01;33m=== Configuration ===\033[00m"
+      cat $config_file
+    else
+      echo "\033[01;31mNo configuration found!\033[00m"
+    fi
+    return
+  fi
+  
+  if [ -e $config_file ]; then
+    value=`grep "^$key=" $config_file | cut -d"=" -f2-`
+    if [ "$value" ]; then
+      echo "$value"
+    else
+      echo "\033[01;31mKey not found: $key\033[00m"
+    fi
+  else
+    echo "\033[01;31mNo configuration found!\033[00m"
+  fi
+}
+
 # about pegasus-two function
 about() {
   clear
   echo "$logo"
-  echo " \033[01;33mpegasus-two \033[01;31mv0.1\033[00m"
+  echo " \033[01;33mpegasus-two \033[01;31mv0.2\033[00m"
   echo " pegasus-two is a library of all"
-  echo " hakcing tools for termux"
+  echo " hacking tools for termux"
   echo " and other linux distribution."
   echo -n "$prompt "
   read tmp
@@ -1296,7 +1663,7 @@ install_process() {
             fi
             # installing tools
             if [ $tool_url != "" -a $tool_url != "null" ]; then
-              $sudo wget $tool_url -o ~/$tool_pac
+              $sudo wget $tool_url -O ~/$tool_pac
             fi
           else
             echo "\033[01;31mSorry you are offline !!\033[00m"
@@ -1318,7 +1685,7 @@ install_process() {
             fi
             # installing tools
             if [ $tool_url != "" -a $tool_url != "null" ]; then
-              wget $tool_url -o ~/$tool_pac
+              wget $tool_url -O ~/$tool_pac
             fi
           else
             echo "\033[01;31mSorry \033[00m: you are \033[01;31moffline \033[00m!!\033[00m"
@@ -1417,6 +1784,7 @@ remove_process() {
     elif [ $tool_installer = "git" -o $tool_installer = "curl" -o $tool_installer = "wget" ]; then
       # check tool is installed or not
       if [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
+        backup_tool "$tool_name" "$tool_pac"
         echo "\033[01;33mRemoving ...\033[00m"
         sleep 1
         if [ $sudo ]; then
@@ -1427,8 +1795,10 @@ remove_process() {
         # check tool is removed or not
         if [ ! -e ~/$tool_pac ]; then
           echo "\033[00m'$tool_name' \033[00m: \033[01;32mis removed successfully !!\033[00m"
+          log_action "REMOVE_SUCCESS: $tool_name"
         else
           echo "\033[01;31mSorry \033[00m: '$tool_name' \033[01;31mcould not be removed !!\033[00m"
+          log_action "REMOVE_FAILED: $tool_name"
         fi
       else
         echo "\033[01;31mSorry \033[00m: '$tool_name' \033[01;31mis not installed !!\033[00m"
@@ -1505,21 +1875,46 @@ if [ $# -eq 1 ]; then
     category|-c)
       cli_category
     ;;
+    stats)
+      cli_stats
+    ;;
+    history)
+      cli_history
+    ;;
+    installed)
+      cli_list_installed
+    ;;
+    favorites)
+      cli_favorite_list
+    ;;
     help|-h)
-      echo "\033[01;33mpegasus-two \033[01;31mv0.1"
+      echo "\033[01;33mpegasus-two \033[01;31mv0.2"
       echo "\033[00mUsage \033[00m: \033[01;33m pegasus-two \033[00m[option]... [toolname]...\033[00m"
-      echo "\n  \033[01;34mOption  \tDescription\033[00m"
-      echo "  -----------  \t--------------------"
-      echo "  help, -h  \tdisplay this help."
-      echo "  list, -l  \tlist all tools."
-      echo "  list -a  \tlist all tools."
-      echo "  -l a  \tlist all tools."
+      echo "\n  \033[01;34mOption  \t\tDescription\033[00m"
+      echo "  -----------  \t\t--------------------"
+      echo "  help, -h  \t\tdisplay this help."
+      echo "  list, -l  \t\tlist all tools."
+      echo "  list -a  \t\tlist all tools."
+      echo "  installed  \t\tlist installed tools only."
       echo "  category, -c  \tlist all categories."
-      echo "  install, -i  \tinstall any tools."
-      echo "  search, -s  \tsearch tools."
-      echo "  remove, -r  \tremove any tools."
-      echo "  update, -u  \tupdate pegasus-two."
-      echo "  start  \tstart pegasus-two menu mode."
+      echo "  install, -i [tool]  \tinstall a tool."
+      echo "  search, -s [tool]  \tsearch tools."
+      echo "  remove, -r [tool]  \tremove a tool."
+      echo "  update, -u  \t\tupdate pegasus-two."
+      echo "  info [tool]  \t\tshow tool information."
+      echo "  verify [tool]  \tverify tool installation."
+      echo "  stats  \t\tshow statistics."
+      echo "  history [n]  \t\tshow history (last n entries)."
+      echo "  export [file]  \texport installed tools list."
+      echo "  import [file]  \timport and install tools."
+      echo "  favorite add [tool]  \tadd tool to favorites."
+      echo "  favorite remove [tool]  remove from favorites."
+      echo "  favorite list  \tlist favorite tools."
+      echo "  dry-run [tool]  \ttest install without executing."
+      echo "  backup clean  \tclean all backups."
+      echo "  config get [key]  \tget configuration value."
+      echo "  config set [key] [val]  set configuration value."
+      echo "  start  \t\tstart pegasus-two menu mode."
     ;;
     *)
       echo "\033[01;31mSorry \033[00m: '$1' \033[01;31minvalid option!!\033[00m"
@@ -1532,6 +1927,9 @@ elif [ $# -eq 2 ]; then
       case $2 in
         -a|a)
           cli_list_all
+         ;;
+        installed)
+          cli_list_installed
          ;;
         *)
           echo "\033[01;31mSorry \033[00m: '$2' \033[01;31minvalid option!!\033[00m"
@@ -1548,8 +1946,84 @@ elif [ $# -eq 2 ]; then
     remove|-r)
       cli_remove $2
     ;;
+    info)
+      cli_info $2
+    ;;
+    verify)
+      cli_verify $2
+    ;;
+    history)
+      cli_history $2
+    ;;
+    export)
+      cli_export $2
+    ;;
+    import)
+      cli_import $2
+    ;;
+    dry-run)
+      cli_dry_run $2
+    ;;
+    category)
+      cli_list_category $2
+    ;;
+    backup)
+      if [ "$2" = "clean" ]; then
+        cli_clean_backups
+      fi
+    ;;
+    config)
+      cli_config_get $2
+    ;;
+    favorite)
+      case $2 in
+        list)
+          cli_favorite_list
+        ;;
+        *)
+          echo "\033[01;31mUsage: pegasus-two favorite [add|remove|list] [tool]\033[00m"
+        ;;
+      esac
+    ;;
     *)
       echo "\033[01;31mSorry \033[00m: '$1' \033[01;31minvalid option!!\033[00m"
+      echo "\033[01;34mtype \033[00m:\n  'pegasus-two -h' or 'pegasus-two help' for help.\033[00m"
+    ;;
+  esac
+elif [ $# -eq 3 ]; then
+  case $1 in
+    favorite)
+      case $2 in
+        add)
+          cli_favorite_add $3
+        ;;
+        remove)
+          cli_favorite_remove $3
+        ;;
+        *)
+          echo "\033[01;31mUsage: pegasus-two favorite [add|remove|list] [tool]\033[00m"
+        ;;
+      esac
+    ;;
+    config)
+      if [ "$2" = "get" ]; then
+        cli_config_get $3
+      fi
+    ;;
+    *)
+      echo "\033[01;31mSorry \033[00m: invalid command\033[00m"
+      echo "\033[01;34mtype \033[00m:\n  'pegasus-two -h' or 'pegasus-two help' for help.\033[00m"
+    ;;
+  esac
+elif [ $# -eq 4 ]; then
+  case $1 in
+    config)
+      if [ "$2" = "set" ]; then
+        cli_config_set $3 $4
+      fi
+    ;;
+    *)
+      echo "\033[01;31mSorry \033[00m: invalid command\033[00m"
       echo "\033[01;34mtype \033[00m:\n  'pegasus-two -h' or 'pegasus-two help' for help.\033[00m"
     ;;
   esac
