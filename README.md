@@ -37,7 +37,7 @@ Open the terminal and type following commands.
 ### CLI Mode :
 `pegasus-two -h` or `pegasus-two help` for help.
 
-Options :
+#### Basic Options :
 - `pegasus-two install [tool_name]` install any tool.
 - `pegasus-two -i [tool_name]` install any tool.
 - `pegasus-two search [tool_name]` search any tool.
@@ -48,12 +48,39 @@ Options :
 - `pegasus-two list -a` list all tools.
 - `pegasus-two -l` list all tools.
 - `pegasus-two -l -a` list all tools.
+- `pegasus-two installed` list installed tools only.
 - `pegasus-two category` list all categories.
 - `pegasus-two -c` list all categories.
 - `pegasus-two update` update pegasus-two.
 - `pegasus-two -u` update pegasus-two.
 - `pegasus-two help` get help.
 - `pegasus-two -h` get help.
+
+#### New Features (v0.2):
+
+**Tool Information & Verification:**
+- `pegasus-two info [tool_name]` show detailed information about a tool.
+- `pegasus-two verify [tool_name]` verify tool installation and check status.
+
+**Statistics & History:**
+- `pegasus-two stats` show installation statistics.
+- `pegasus-two history [n]` show recent history (last n entries, default 20).
+
+**Import/Export:**
+- `pegasus-two export [file]` export list of installed tools to a file.
+- `pegasus-two import [file]` import and install tools from a file.
+
+**Favorites:**
+- `pegasus-two favorite add [tool_name]` add a tool to favorites.
+- `pegasus-two favorite remove [tool_name]` remove a tool from favorites.
+- `pegasus-two favorite list` list all favorite tools.
+
+**Advanced Features:**
+- `pegasus-two dry-run [tool_name]` test installation without executing.
+- `pegasus-two backup clean` clean all backup files.
+- `pegasus-two config get [key]` get configuration value.
+- `pegasus-two config set [key] [value]` set configuration value.
+- `pegasus-two category [number]` list tools in specific category.
 
 ### Menu Mode :
 
