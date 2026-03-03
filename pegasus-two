@@ -917,6 +917,11 @@ log_action() {
   echo "[$timestamp] $1" >> $history_file 2>/dev/null
 }
 
+# Utility: get exact tool record by name (case-insensitive)
+find_tool_record() {
+  awk -F"|" -v query="$1" 'tolower($1) == tolower(query) { print; exit }' "$tools_data"
+}
+
 # Feature 2: Backup tools before removal
 backup_tool() {
   tool_name=$1
@@ -948,13 +953,7 @@ backup_tool() {
 
 # Feature 3: Tool information display
 cli_info() {
-  for data in `grep -i "^$1" $tools_data`; do
-    for tool in $data; do
-      if [ `echo $tool | cut -d"|" -f1 | tr 'A-Z' 'a-z'` = `echo $1 | tr 'A-Z' 'a-z'` ]; then
-        get_tool_data=$tool
-      fi
-    done
-  done
+  get_tool_data=`find_tool_record "$1"`
   
   if [ "$get_tool_data" ]; then
     tool_name=`echo $get_tool_data | cut -d"|" -f1`
@@ -1011,10 +1010,13 @@ cli_import() {
   
   echo "\033[01;32mImporting tools from $import_file...\033[00m"
   while IFS= read -r tool_name; do
-    if [ ! -z "$tool_name" ] && [ "${tool_name:0:1}" != "#" ]; then
-      echo "\033[01;33mInstalling $tool_name...\033[00m"
-      cli_install "$tool_name"
-    fi
+    case "$tool_name" in
+      ""|\#*)
+        continue
+      ;;
+    esac
+    echo "\033[01;33mInstalling $tool_name...\033[00m"
+    cli_install "$tool_name"
   done < "$import_file"
   
   echo "\033[01;32mImport completed!\033[00m"
@@ -1024,10 +1026,20 @@ cli_import() {
 # Feature 6: Favorites system
 cli_favorite_add() {
   tool_name=$1
-  if grep -q "^$tool_name$" $favorites_file 2>/dev/null; then
+  if [ -z "$tool_name" ]; then
+    echo "\033[01;31mUsage: pegasus-two favorite add [tool]\033[00m"
+    return
+  fi
+
+  if [ -z "`find_tool_record "$tool_name"`" ]; then
+    echo "\033[01;31mTool not found: $tool_name\033[00m"
+    return
+  fi
+
+  if grep -Fqx "$tool_name" "$favorites_file" 2>/dev/null; then
     echo "\033[01;33m'$tool_name' is already in favorites!\033[00m"
   else
-    echo "$tool_name" >> $favorites_file
+    echo "$tool_name" >> "$favorites_file"
     echo "\033[01;32m'$tool_name' added to favorites!\033[00m"
     log_action "FAVORITE_ADD: $tool_name"
   fi
@@ -1162,41 +1174,47 @@ cli_list_category() {
 # Feature 13: Verify tool installation
 cli_verify() {
   tool_name=$1
-  for data in `grep -i "^$tool_name" $tools_data`; do
-    for tool in $data; do
-      if [ `echo $tool | cut -d"|" -f1 | tr 'A-Z' 'a-z'` = `echo $tool_name | tr 'A-Z' 'a-z'` ]; then
-        tool_pac=`echo $tool | cut -d"|" -f2`
-        tool_installer=`echo $tool | cut -d"|" -f5`
-        
-        echo "\033[01;33mVerifying $tool_name...\033[00m"
-        
-        if [ $tool_installer = "package_manager" ]; then
-          if [ -e $bin/$tool_pac ]; then
-            echo "\033[01;32m✓ $tool_name is installed and found at $bin/$tool_pac\033[00m"
-            if [ -x $bin/$tool_pac ]; then
-              echo "\033[01;32m✓ Executable permissions OK\033[00m"
-            else
-              echo "\033[01;31m✗ Not executable\033[00m"
-            fi
-          else
-            echo "\033[01;31m✗ $tool_name is not installed\033[00m"
-          fi
-        else
-          if [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
-            echo "\033[01;32m✓ $tool_name is installed at ~/$tool_pac\033[00m"
-          else
-            echo "\033[01;31m✗ $tool_name is not installed\033[00m"
-          fi
-        fi
+  tool_record=`find_tool_record "$tool_name"`
+
+  if [ -z "$tool_record" ]; then
+    echo "\033[01;31mTool not found: $tool_name\033[00m"
+    return
+  fi
+
+  tool_name=`echo "$tool_record" | cut -d"|" -f1`
+  tool_pac=`echo "$tool_record" | cut -d"|" -f2`
+  tool_installer=`echo "$tool_record" | cut -d"|" -f5`
+
+  echo "\033[01;33mVerifying $tool_name...\033[00m"
+
+  if [ "$tool_installer" = "package_manager" ]; then
+    if [ -e "$bin/$tool_pac" ]; then
+      echo "\033[01;32m✓ $tool_name is installed and found at $bin/$tool_pac\033[00m"
+      if [ -x "$bin/$tool_pac" ]; then
+        echo "\033[01;32m✓ Executable permissions OK\033[00m"
+      else
+        echo "\033[01;31m✗ Not executable\033[00m"
       fi
-    done
-  done
+    else
+      echo "\033[01;31m✗ $tool_name is not installed\033[00m"
+    fi
+  else
+    if [ -e ~/$tool_pac ] || [ -d ~/$tool_pac ]; then
+      echo "\033[01;32m✓ $tool_name is installed at ~/$tool_pac\033[00m"
+    else
+      echo "\033[01;31m✗ $tool_name is not installed\033[00m"
+    fi
+  fi
 }
 
 # Feature 14: Clean backups
 cli_clean_backups() {
   if [ -d $backup_dir ]; then
-    backup_count=`ls -1 $backup_dir | wc -l`
+    backup_count=`find "$backup_dir" -mindepth 1 -maxdepth 1 | wc -l`
+    if [ "$backup_count" -eq 0 ]; then
+      echo "\033[01;31mNo backups found!\033[00m"
+      return
+    fi
     echo "\033[01;33mFound $backup_count backup(s)\033[00m"
     echo "\033[01;31mDelete all backups? (y/n)\033[00m"
     read confirm
